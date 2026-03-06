@@ -1,0 +1,345 @@
+2026-03-07 00:53:36,100 - MainThread - INFO - Starting Excel ingestion watcher...
+2026-03-07 00:53:36,100 - Worker-1 - INFO - Worker 1 started
+2026-03-07 00:53:36,100 - Worker-2 - INFO - Worker 2 started
+2026-03-07 00:53:36,101 - MainThread - INFO - Watcher started on /Users/jaythangavel/local_development/excel-ingestion-automation/data/source with 2 workers
+2026-03-07 00:53:41,890 - Thread-1 - INFO - New Excel file detected: /Users/jaythangavel/local_development/excel-ingestion-automation/data/source/Example_01.xlsx
+2026-03-07 00:53:42,394 - Thread-1 - INFO - Enqueued file: /Users/jaythangavel/local_development/excel-ingestion-automation/data/process/Example_01.xlsx
+2026-03-07 00:53:42,394 - Worker-1 - INFO - Worker 1 processing: Example_01.xlsx
+2026-03-07 00:53:42,394 - Worker-1 - INFO - Worker 1 detecting structure...
+2026-03-07 00:53:42,462 - Worker-1 - INFO - Worker 1 detected structure: 20 rows, 56 columns
+2026-03-07 00:53:42,463 - Worker-1 - INFO - Worker 1 generating recipe...
+2026-03-07 00:53:42,467 - Worker-1 - INFO - Source metadata size: 8803 chars, 52 columns
+2026-03-07 00:53:46,048 - Worker-1 - INFO - HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-07 00:53:46,058 - Worker-1 - INFO - Raw LLM response length: 2055 chars
+2026-03-07 00:53:46,058 - Worker-1 - INFO - Raw LLM response: {
+  "transformations": [
+    {
+      "target": "FirstName",
+      "type": "rename",
+      "source": "FIRST NAMES",
+      "rule": null,
+      "target_type": null,
+      "confidence": 1.0,
+      "alternatives": null
+    },
+    {
+      "target": "Dob",
+      "type": "rename",
+      "source": "DOB (YYYYMMDD)",
+      "rule": {
+        "source_format": "%Y%m%d"
+      },
+      "target_type": "datetime",
+      "confidence": 1.0,
+      "alternatives": null
+    },
+    {
+      "target": "AnnualIncome",
+      "type": "rename",
+      "source": "ANNUAL PENSIONABLE  SALARY",
+      "rule": null,
+      "target_type": "numeric",
+      "confidence": 0.6,
+      "alternatives": [
+        "ANNUAL RISK SALARY"
+      ]
+    },
+    {
+      "target": "MonthlyIncome",
+      "type": "rename",
+      "source": "MONTHLY PENSIONABLE SALARY",
+      "rule": null,
+      "target_type": "numeric",
+      "confidence": 0.6,
+      "alternatives": [
+        "MONTHLY RISK SALARY"
+      ]
+    },
+    {
+      "target": "Category",...
+2026-03-07 00:53:46,058 - Worker-1 - INFO - Extracted JSON: {
+  "transformations": [
+    {
+      "target": "FirstName",
+      "type": "rename",
+      "source": "FIRST NAMES",
+      "rule": null,
+      "target_type": null,
+      "confidence": 1.0,
+      "alternatives": null
+    },
+    {
+      "target": "Dob",
+      "type": "rename",
+      "source": "DOB (YYYYMMDD)",
+      "rule": {
+        "source_format": "%Y%m%d"
+      },
+      "target_type": "datetime",
+      "confidence": 1.0,
+      "alternatives": null
+    },
+    {
+      "target": "AnnualIncome",
+      "type": "rename",
+      "source": "ANNUAL PENSIONABLE  SALARY",
+      "rule": null,
+      "target_type": "numeric",
+      "confidence": 0.6,
+      "alternatives": [
+        "ANNUAL RISK SALARY"
+      ]
+    },
+    {
+      "target": "MonthlyIncome",
+      "type": "rename",
+      "source": "MONTHLY PENSIONABLE SALARY",
+      "rule": null,
+      "target_type": "numeric",
+      "confidence": 0.6,
+      "alternatives": [
+        "MONTHLY RISK SALARY"
+      ]
+    },
+    {
+      "target": "Category",
+      "type": "rename",
+      "source": "MEMBER CATEGORY NAME",
+      "rule": null,
+      "target_type": null,
+      "confidence": 0.8,
+      "alternatives": [
+        "MEMBER CATEGORY ALIAS"
+      ]
+    },
+    {
+      "target": "PassportCountryofIssue",
+      "type": "rename",
+      "source": "COUNTRY OF ISSUE PASSPORT",
+      "rule": null,
+      "target_type": null,
+      "confidence": 1.0,
+      "alternatives": null
+    },
+    {
+      "target": "PaypointorBranchName",
+      "type": "rename",
+      "source": "BRANCH / REGION",
+      "rule": null,
+      "target_type": null,
+      "confidence": 0.8,
+      "alternatives": null
+    },
+    {
+      "target": "PayrollNumber",
+      "type": "rename",
+      "source": "EMPLOYEE NO",
+      "rule": null,
+      "target_type": null,
+      "confidence": 1.0,
+      "alternatives": null
+    },
+    {
+      "target": "CellPhoneNumber",
+      "type": "rename",
+      "source": "MEMBER CELL NUMBER",
+      "rule": null,
+      "target_type": null,
+      "confidence": 1.0,
+      "alternatives": null
+    }
+  ]
+}
+2026-03-07 00:53:46,058 - Worker-1 - INFO - validating recipe...
+2026-03-07 00:53:46,058 - Worker-1 - INFO - Worker 1 generated recipe with 13 transformations
+2026-03-07 00:53:46,059 - Worker-1 - INFO - Worker 1 applying recipe...
+2026-03-07 00:53:46,064 - Worker-1 - INFO - Worker 1 applied recipe, got 20 rows
+2026-03-07 00:53:46,068 - Worker-1 - WARNING - Worker 1 validation: Column "PersonalEmailAddress" - 100% of values are null/empty after transformation
+2026-03-07 00:53:46,068 - Worker-1 - WARNING - Worker 1 validation: Column "AnnualIncome" - mapping confidence 60% for source "ANNUAL PENSIONABLE  SALARY" (alternatives: ANNUAL RISK SALARY)
+2026-03-07 00:53:46,068 - Worker-1 - WARNING - Worker 1 validation: Column "MonthlyIncome" - mapping confidence 60% for source "MONTHLY PENSIONABLE SALARY" (alternatives: MONTHLY RISK SALARY)
+2026-03-07 00:53:46,068 - Worker-1 - WARNING - Worker 1 validation: Column "PassportCountryofIssue" - 100% of values are null/empty after transformation
+2026-03-07 00:53:46,068 - Worker-1 - WARNING - Worker 1 validation: Column "CellPhoneNumber" - 100% of values are null/empty after transformation
+2026-03-07 00:53:46,068 - Worker-1 - INFO - Worker 1 Data Cleansing for file Example_01.xlsx...
+2026-03-07 00:53:46,079 - Worker-1 - INFO - Worker 1 wrote output to: /Users/jaythangavel/local_development/excel-ingestion-automation/data/target/Example_01.xlsx
+2026-03-07 00:53:46,079 - Worker-1 - INFO - Worker 1 moved processed file to: /Users/jaythangavel/local_development/excel-ingestion-automation/data/completed/Example_01.xlsx
+2026-03-07 00:54:07,950 - Thread-1 - INFO - New Excel file detected: /Users/jaythangavel/local_development/excel-ingestion-automation/data/source/Example-4.xlsx
+2026-03-07 00:54:08,455 - Thread-1 - INFO - Enqueued file: /Users/jaythangavel/local_development/excel-ingestion-automation/data/process/Example-4.xlsx
+2026-03-07 00:54:08,455 - Worker-1 - INFO - Worker 1 processing: Example-4.xlsx
+2026-03-07 00:54:08,455 - Worker-1 - INFO - Worker 1 detecting structure...
+2026-03-07 00:54:08,518 - Worker-1 - INFO - Worker 1 detected structure: 255 rows, 20 columns
+2026-03-07 00:54:08,518 - Worker-1 - INFO - Worker 1 generating recipe...
+2026-03-07 00:54:08,521 - Worker-1 - INFO - Source metadata size: 3855 chars, 18 columns
+2026-03-07 00:54:11,827 - Worker-1 - INFO - HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-07 00:54:11,829 - Worker-1 - INFO - Raw LLM response length: 2453 chars
+2026-03-07 00:54:11,829 - Worker-1 - INFO - Raw LLM response: {
+  "transformations": [
+    {
+      "target": "FirstName",
+      "type": "rename",
+      "source": "First names",
+      "rule": null,
+      "target_type": null,
+      "confidence": 1.0,
+      "alternatives": null
+    },
+    {
+      "target": "Dob",
+      "type": "rename",
+      "source": "Date of birth",
+      "rule": {
+        "source_format": "%d/%m/%Y"
+      },
+      "target_type": "datetime",
+      "confidence": 1.0,
+      "alternatives": null
+    },
+    {
+      "target": "IdNo",
+      "type": "rename",
+      "source": "Identity number",
+      "rule": null,
+      "target_type": null,
+      "confidence": 1.0,
+      "alternatives": null
+    },
+    {
+      "target": "AnnualIncome",
+      "type": "empty",
+      "source": null,
+      "rule": null,
+      "target_type": null,
+      "confidence": 0.3,
+      "alternatives": [
+        "Monthly pensionable salary",
+        "Monthly GLA cost",
+        "Monthly PHI cost"
+      ]
+    },
+    {
+      "target": "MonthlyIncome",
+      "type": "rena...
+2026-03-07 00:54:11,830 - Worker-1 - INFO - Extracted JSON: {
+  "transformations": [
+    {
+      "target": "FirstName",
+      "type": "rename",
+      "source": "First names",
+      "rule": null,
+      "target_type": null,
+      "confidence": 1.0,
+      "alternatives": null
+    },
+    {
+      "target": "Dob",
+      "type": "rename",
+      "source": "Date of birth",
+      "rule": {
+        "source_format": "%d/%m/%Y"
+      },
+      "target_type": "datetime",
+      "confidence": 1.0,
+      "alternatives": null
+    },
+    {
+      "target": "IdNo",
+      "type": "rename",
+      "source": "Identity number",
+      "rule": null,
+      "target_type": null,
+      "confidence": 1.0,
+      "alternatives": null
+    },
+    {
+      "target": "AnnualIncome",
+      "type": "empty",
+      "source": null,
+      "rule": null,
+      "target_type": null,
+      "confidence": 0.3,
+      "alternatives": [
+        "Monthly pensionable salary",
+        "Monthly GLA cost",
+        "Monthly PHI cost"
+      ]
+    },
+    {
+      "target": "MonthlyIncome",
+      "type": "rename",
+      "source": "Monthly pensionable salary",
+      "rule": null,
+      "target_type": null,
+      "confidence": 1.0,
+      "alternatives": null
+    },
+    {
+      "target": "Category",
+      "type": "rename",
+      "source": "Category code",
+      "rule": null,
+      "target_type": null,
+      "confidence": 1.0,
+      "alternatives": null
+    },
+    {
+      "target": "PassportCountryofIssue",
+      "type": "empty",
+      "source": null,
+      "rule": null,
+      "target_type": null,
+      "confidence": 0.2,
+      "alternatives": [
+        "Passport number"
+      ]
+    },
+    {
+      "target": "PaypointorBranchName",
+      "type": "empty",
+      "source": null,
+      "rule": null,
+      "target_type": null,
+      "confidence": 0.2,
+      "alternatives": []
+    },
+    {
+      "target": "PayrollNumber",
+      "type": "empty",
+      "source": null,
+      "rule": null,
+      "target_type": null,
+      "confidence": 0.4,
+      "alternatives": [
+        "Member number",
+        "Company number"
+      ]
+    },
+    {
+      "target": "CellPhoneNumber",
+      "type": "rename",
+      "source": "Cellular telephone number",
+      "rule": null,
+      "target_type": null,
+      "confidence": 1.0,
+      "alternatives": null
+    },
+    {
+      "target": "PersonalEmailAddress",
+      "type": "rename",
+      "source": "Email address",
+      "rule": null,
+      "target_type": null,
+      "confidence": 1.0,
+      "alternatives": null
+    }
+  ]
+}
+2026-03-07 00:54:11,830 - Worker-1 - INFO - validating recipe...
+2026-03-07 00:54:11,830 - Worker-1 - INFO - Worker 1 generated recipe with 13 transformations
+2026-03-07 00:54:11,830 - Worker-1 - INFO - Worker 1 applying recipe...
+2026-03-07 00:54:11,837 - Worker-1 - INFO - Worker 1 applied recipe, got 255 rows
+2026-03-07 00:54:11,841 - Worker-1 - INFO - Worker 1 Data Cleansing for file Example-4.xlsx...
+2026-03-07 00:54:11,876 - Worker-1 - INFO - Worker 1 wrote output to: /Users/jaythangavel/local_development/excel-ingestion-automation/data/target/Example-4.xlsx
+2026-03-07 00:54:11,876 - Worker-1 - INFO - Worker 1 moved processed file to: /Users/jaythangavel/local_development/excel-ingestion-automation/data/completed/Example-4.xlsx
+2026-03-07 00:54:18,589 - MainThread - INFO - Received signal 2, shutting down...
+2026-03-07 00:54:18,900 - Worker-1 - INFO - Worker 1 shutting down
+2026-03-07 00:54:19,239 - Worker-2 - INFO - Worker 2 shutting down
+2026-03-07 00:54:19,246 - MainThread - INFO - Watcher shutdown complete
