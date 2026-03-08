@@ -31,6 +31,19 @@ from core.target_schema import TABLE_SPEC
 from core.writer import write_excel
 from core.recipe_engine import apply_recipe, generate_recipe, validate_output
 
+def safe_move_file(src: Path, dst: Path) -> None:
+    """Safely move file across platforms, handling cross-device moves."""
+    try:
+        src.rename(dst)
+    except OSError as e:
+        # Handle cross-device moves (e.g., different drives on Windows)
+        if "cross-device" in str(e).lower() or (hasattr(e, 'winerror') and e.winerror == 17):
+            import shutil
+            shutil.copy2(src, dst)
+            src.unlink()
+        else:
+            raise
+
 # Configure logging with daily rotation
 def setup_logging():
     """Setup logging with daily log files."""
@@ -77,8 +90,8 @@ class ExcelHandler(FileSystemEventHandler):
             # process_name = f"{filepath.stem}{filepath.suffix}"
             process_path = PROCESS_DIR / process_name
 
-            # Move file
-            filepath.rename(process_path)
+            # Move file (cross-platform compatible)
+            safe_move_file(filepath, process_path)
 
             # Add to queue
             self.file_queue.put(process_path)
@@ -154,7 +167,7 @@ def worker_thread(
 
                 # Step 6: Move to completed
                 completed_path = COMPLETED_DIR / filepath.name
-                filepath.rename(completed_path)
+                safe_move_file(filepath, completed_path)
                 logger.info(f"Worker {worker_id} moved processed file to: {completed_path}")
 
             except Exception as e:
@@ -163,7 +176,7 @@ def worker_thread(
                 # Move to error directory on error
                 try:
                     archive_path = ERROR_DIR / filepath.name
-                    filepath.rename(archive_path)
+                    safe_move_file(filepath, archive_path)
                     logger.info(f"Worker {worker_id} moved failed file to archive: {archive_path}")
                 except Exception as archive_error:
                     logger.error(f"Worker {worker_id} error archiving file: {archive_error}")
@@ -180,14 +193,14 @@ def worker_thread(
 def enqueue_existing_files(file_queue: queue.Queue):
     """Enqueue any existing Excel files in source directory."""
     for filepath in SOURCE_DIR.glob("*.xlsx"):
-        logger.info(f"Enqueuing existing file: {filepath}")
+        logger.info(f"Moving existing file: {filepath} to Process folder")
         # Move to process directory with timestamp
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         process_name = f"{filepath.stem}_{timestamp}{filepath.suffix}"
         process_path = PROCESS_DIR / process_name
 
         try:
-            filepath.rename(process_path)
+            safe_move_file(filepath, process_path)
             # file_queue.put(process_path)
         except Exception as e:
             logger.error(f"Error enqueuing existing file {filepath}: {e}")
