@@ -20,6 +20,7 @@ PROCESS_DIR = Path(os.getenv("PROCESS_DIR", BASE_DIR / "data" / "process"))
 TARGET_DIR = Path(os.getenv("TARGET_DIR", BASE_DIR / "data" / "target"))
 COMPLETED_DIR = Path(os.getenv("COMPLETED_DIR", BASE_DIR / "data" / "completed"))
 ERROR_DIR = Path(os.getenv("ERROR_DIR", BASE_DIR / "data" / "error"))
+LOGS_DIR = Path(os.getenv("LOGS_DIR", BASE_DIR / "logs"))
 
 # ── Header detection ──────────────────────────────────────────────────────
 MIN_HEADER_COLS = 3

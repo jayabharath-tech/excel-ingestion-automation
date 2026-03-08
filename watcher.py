@@ -1,6 +1,7 @@
 """File watcher with queue and worker threads for Excel processing."""
 
 import logging
+import logging.handlers
 import queue
 import signal
 import threading
@@ -22,6 +23,7 @@ from config import (
     PROCESS_DIR,
     SOURCE_DIR,
     TARGET_DIR,
+    LOGS_DIR,
 )
 from core import extract, read_excel
 from core.data_cleaner import clean_data
@@ -29,15 +31,26 @@ from core.target_schema import TABLE_SPEC
 from core.writer import write_excel
 from core.recipe_engine import apply_recipe, generate_recipe, validate_output
 
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(threadName)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.FileHandler('excel_ingestion.log'),
-        logging.StreamHandler()
-    ]
-)
+# Configure logging with daily rotation
+def setup_logging():
+    """Setup logging with daily log files."""
+    # Create logs directory if it doesn't exist
+    LOGS_DIR.mkdir(exist_ok=True)
+    
+    # Generate log filename with current date
+    log_filename = LOGS_DIR / f"excel_ingestion_{datetime.now().strftime('%Y-%m-%d')}.log"
+    
+    # Configure logging
+    logging.basicConfig(
+        level=logging.INFO,
+        format='%(asctime)s - %(threadName)s - %(levelname)s - %(message)s',
+        handlers=[
+            logging.FileHandler(log_filename, mode='a'),  # Append mode
+            logging.StreamHandler()
+        ]
+    )
+
+setup_logging()
 logger = logging.getLogger(__name__)
 
 
@@ -52,7 +65,7 @@ class ExcelHandler(FileSystemEventHandler):
         if not event.is_directory and event.src_path.endswith('.xlsx'):
             logger.info(f"New Excel file detected: {event.src_path}")
             # Wait a moment for file to be fully written
-            time.sleep(0.5)
+            time.sleep(5)
             self._enqueue_file(Path(event.src_path))
 
     def _enqueue_file(self, filepath: Path):
@@ -60,8 +73,8 @@ class ExcelHandler(FileSystemEventHandler):
         try:
             # Move to process directory with timestamp
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            # process_name = f"{filepath.stem}_{timestamp}{filepath.suffix}" # TODO: rename
-            process_name = f"{filepath.stem}{filepath.suffix}"
+            process_name = f"{filepath.stem}_{timestamp}{filepath.suffix}"
+            # process_name = f"{filepath.stem}{filepath.suffix}"
             process_path = PROCESS_DIR / process_name
 
             # Move file
@@ -102,20 +115,11 @@ def worker_thread(
                 structure =extract(filepath, target_columns=target_columns)
                 logger.info(
                     f"Worker {worker_id} detected structure: {structure.boundary.data_row_count} rows, {len(structure.dataframe.columns)} columns")
-                # print(structure)
 
                 df_structured = structure.dataframe
 
                 # Strip whitespace from column names to handle trailing spaces
                 df_structured.columns = df_structured.columns.str.strip()
-                
-                # Debug: Show columns and their dtypes
-                print("\n=== DataFrame Structure ===")
-                print(f"Shape: {df_structured.shape}")
-                print("\nColumns and dtypes:")
-                for col in df_structured.columns:
-                    print(f"  {col}: {df_structured[col].dtype}")
-                print("========================\n")
 
                 # Step 2: Generate recipe
                 logger.info(f"Worker {worker_id} generating recipe...")
@@ -128,7 +132,7 @@ def worker_thread(
                     model=LLM_MODEL
                 )
                 logger.info(f"Worker {worker_id} generated recipe with {len(recipe.transformations)} transformations")
-                print(recipe)
+                logger.debug(recipe)
 
                 # Step 3: Apply recipe
                 logger.info(f"Worker {worker_id} applying recipe...")
@@ -140,7 +144,7 @@ def worker_thread(
                     logger.warning(f"Worker {worker_id} validation: {w}")
 
                 # Step 3.1 Data Cleanup
-                logger.info(f"Worker {worker_id} Data Cleansing for file {_input_file_path.name}...")
+                logger.debug(f"Worker {worker_id} Data Cleansing for file {_input_file_path.name}...")
                 df, _ = clean_data(df)
 
                 # Step 4: Write output
@@ -184,7 +188,7 @@ def enqueue_existing_files(file_queue: queue.Queue):
 
         try:
             filepath.rename(process_path)
-            file_queue.put(process_path)
+            # file_queue.put(process_path)
         except Exception as e:
             logger.error(f"Error enqueuing existing file {filepath}: {e}")
 

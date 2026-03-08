@@ -86,8 +86,8 @@ class Recipe(BaseModel):
 
 def _extract_json(text: str) -> str:
     """Extract JSON from LLM response, handling markdown fences and truncation."""
-    logger.info(f"Raw LLM response length: {len(text)} chars")
-    logger.info(f"Raw LLM response: {text[:1000]}...")  # Debug: Log first 1000 chars
+    logger.debug(f"Raw LLM response length: {len(text)} chars")
+    logger.debug(f"Raw LLM response: {text[:1000]}...")  # Debug: Log first 1000 chars
 
     # Remove markdown code fences
     text = re.sub(r"```(?:json)?\s*", "", text)
@@ -107,7 +107,7 @@ def _extract_json(text: str) -> str:
     if len(text.strip()) > 0 and not text.strip().endswith('}'):
         logger.warning("Response appears to be truncated - does not end with '}'")
     
-    logger.info(f"Extracted JSON: {json_text}")  # Debug: Log extracted JSON
+    logger.debug(f"Extracted JSON: {json_text}")  # Debug: Log extracted JSON
     return json_text
 
 
@@ -351,7 +351,7 @@ CRITICAL RULES:
     )
 
     response_text = response.choices[0].message.content
-    print(response_text)
+    logger.debug(response_text)
     json_text = _extract_json(response_text)
     llm_response = RecipeLLMResponse.model_validate(json.loads(json_text))
 

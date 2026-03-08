@@ -15,6 +15,4 @@ from core.target_schema import TABLE_SPEC
 
 def clean_data(df: pd.DataFrame) -> tuple[pd.DataFrame, List[str]]:
     """Run all applicable cleaning rules. Returns (cleaned_df, applied_rule_ids)."""
-    print(df["AnnualIncome"])
-    print(df["MonthlyIncome"])
     return TABLE_SPEC.clean(df)
