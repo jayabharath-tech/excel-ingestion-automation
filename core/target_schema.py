@@ -29,6 +29,7 @@ class Column:
     description: str = ""  # What this column represents (optional)
     data_type: Optional[str] = None  # Expected pandas dtype (e.g., 'object', 'int64', 'float64', 'datetime64[ns]')
     excel_format: Optional[str] = None  # Excel format (e.g., 'R #,##0.00', 'dd/mm/yyyy', '#,##0')
+    ignore_number_stored_as_text: bool = False
 
     def get_all_names(self) -> List[str]:
         """Return all searchable names for this column (name + aliases)."""
@@ -88,7 +89,7 @@ class TableSpec:
 def _derive_monthly_from_annual(df: pd.DataFrame) -> pd.DataFrame:
     monthly_null = df["MonthlyIncome"].isna()
     annual_avail = df["AnnualIncome"].notna()
-    
+
     # Only derive if we have valid annual values
     if annual_avail.any():
         annual_values = df.loc[annual_avail, "AnnualIncome"]
@@ -101,14 +102,14 @@ def _derive_monthly_from_annual(df: pd.DataFrame) -> pd.DataFrame:
     else:
         # If no annual values at all, ensure MonthlyIncome stays as is (could be empty or have values)
         pass
-    
+
     return df
 
 
 def _derive_annual_from_monthly(df: pd.DataFrame) -> pd.DataFrame:
     annual_null = df["AnnualIncome"].isna()
     monthly_avail = df["MonthlyIncome"].notna()
-    
+
     # Only derive if we have valid monthly values
     if monthly_avail.any():
         monthly_values = df.loc[monthly_avail, "MonthlyIncome"]
@@ -121,7 +122,7 @@ def _derive_annual_from_monthly(df: pd.DataFrame) -> pd.DataFrame:
     else:
         # If no monthly values at all, ensure AnnualIncome stays as is (could be empty or have values)
         pass
-    
+
     return df
 
 
@@ -142,21 +143,21 @@ def _normalize_gender(df: pd.DataFrame) -> pd.DataFrame:
 # Add all target columns here.  Columns without rules use an empty list.
 
 FirstName = Column(
-    name="FirstName", 
+    name="FirstName",
     aliases=["first name", "given name"],
     description="Person's first or given name. In case source does not exist,Should be split if full name is given",
     data_type="object"
 )
 
 Surname = Column(
-    name="Surname", 
+    name="Surname",
     aliases=["last name", "family name", "surname"],
     description="Person's last or family name.  In case source does not exist,Should be split if full name is given",
     data_type="object"
 )
 
 Gender = Column(
-    name="Gender", 
+    name="Gender",
     rules=[Rule("normalize_gender", _normalize_gender)],
     aliases=["sex", "gender"],
     description="Person's gender (Male/Female)",
@@ -164,52 +165,55 @@ Gender = Column(
 )
 
 Dob = Column(
-    name="Dob", 
+    name="Dob",
     rules=[],
     aliases=["date of birth", "dob", "birth date", "birthdate"],
     description="Person's date of birth",
     data_type="datetime64[ns]",
-    # excel_format="dd/mm/yyyy"
-    excel_format="[$-en-ZA]dd/mm/yyyy"
+    excel_format="dd/mm/yyyy"
+    # excel_format="[$-en-ZA]dd/mm/yyyy"
 )
 
 IdNo = Column(
-    name="IdNo", 
+    name="IdNo",
     rules=[],
     aliases=["id number", "idno", "member id", "identification number", "id", "identity number"],
     description="Unique identifier for the person (13-digit South African ID or some similar id)",
     data_type="object"
 )
 AnnualIncome = Column(
-    name="AnnualIncome", 
+    name="AnnualIncome",
     rules=[Rule("derive_annual_from_monthly", _derive_annual_from_monthly)],
     aliases=["annual income", "yearly salary", "annual salary", "yearly income"],
     description="Person's annual income in South African Rand",
     data_type="float64",
-    excel_format="R #,##0.00"
+    # excel_format='_([$$-409]* #,##0.00_)' # changes accordingly based on the excel locale
+    excel_format='_([$R-en-ZA]* #,##0.00_)'
 )
 
 MonthlyIncome = Column(
-    name="MonthlyIncome", 
+    name="MonthlyIncome",
     rules=[Rule("derive_monthly_from_annual", _derive_monthly_from_annual)],
     aliases=["monthly income", "monthly salary", "monthly pay"],
     description="Person's monthly income in South African Rand",
     data_type="float64",
-    excel_format="R #,##0.00"
+    excel_format='_([$R-en-ZA]* #,##0.00_)'
 )
 
 CellPhoneNumber = Column(
-    name="CellPhoneNumber", 
+    name="CellPhoneNumber",
     aliases=["cell phone", "mobile number", "cellphone", "mobile", "phone number"],
     description="Person's mobile/cell phone number",
-    data_type="object"
+    data_type="str",
+    excel_format="@",
+    ignore_number_stored_as_text=True
 )
 
 PersonalEmailAddress = Column(
-    name="PersonalEmailAddress", 
+    name="PersonalEmailAddress",
     aliases=["email", "email address", "personal email", "mail"],
     description="Person's personal email address",
-    data_type="object"
+    data_type="str"
 )
 Category = Column(name="Category")
 PassportCountryofIssue = Column(name="PassportCountryofIssue")

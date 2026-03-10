@@ -29,6 +29,7 @@ from config import (
 )
 from core import extract, read_excel
 from core.data_cleaner import clean_data
+from core.reader import read_excel_with_schema
 from core.target_schema import TABLE_SPEC
 from core.writer import write_excel
 from core.recipe_engine import apply_recipe, generate_recipe, validate_output
@@ -222,7 +223,8 @@ def output_worker_thread(
             try:
                 # Step 1: Read the target file
                 logger.info(f"Output Worker {worker_id} reading target file: {output_task['target_file']}")
-                df = read_excel(output_task['target_file'], header=0).df
+                # df = read_excel(output_task['target_file'], header=0).df
+                df = read_excel_with_schema(output_task['target_file'], schema=TABLE_SPEC).df
 
                 # Step 2: Apply data cleaning
                 logger.info(

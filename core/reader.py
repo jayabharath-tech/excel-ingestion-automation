@@ -8,9 +8,12 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Optional
+from typing import Optional, TYPE_CHECKING
 
 import pandas as pd
+
+if TYPE_CHECKING:
+    from core.target_schema import TableSpec
 
 
 @dataclass
@@ -48,4 +51,62 @@ def read_excel(
     actual_sheet = sheet_name if sheet_name else xl.sheet_names[0]
     df = pd.read_excel(xl, sheet_name=actual_sheet, header=header)
     xl.close()
+    return RawSheet(df=df, sheet_name=actual_sheet, file_path=str(filepath))
+
+
+def read_excel_with_schema(
+    filepath: str | Path,
+    sheet_name: str | None = None,
+    schema: Optional['TableSpec'] = None,
+) -> RawSheet:
+    """Load Excel file with schema validation and type enforcement.
+    
+    If schema is provided, applies data_type constraints and validation.
+    """
+    import logging
+    logger = logging.getLogger(__name__)
+    
+    filepath = Path(filepath)
+    xl = pd.ExcelFile(filepath, engine="openpyxl")
+    actual_sheet = sheet_name if sheet_name else xl.sheet_names[0]
+    
+    # Read with header to get column names
+    df = pd.read_excel(xl, sheet_name=actual_sheet, header=0, dtype="object")
+    xl.close()
+    
+    # Apply schema validation if provided
+    if schema:
+        logger.info(f"Applying schema validation to {len(df.columns)} columns")
+        
+        # Apply data_type constraints
+        for col in schema.columns:
+            if col.name in df.columns:
+                target_type = col.data_type
+                logger.info(f"  Column '{col.name}' target type is {target_type} type")
+                if target_type == "object":
+                    # Force to string/object type
+                    df[col.name] = df[col.name].astype(str)
+                    logger.info(f"  Column '{col.name}' forced to object type")
+                    
+                elif target_type == "int64":
+                    # Force to integer type
+                    df[col.name] = pd.to_numeric(df[col.name], errors='coerce').astype('Int64')
+                    logger.info(f"  Column '{col.name}' forced to int64 type")
+                    
+                elif target_type == "float64":
+                    # Force to float type
+                    df[col.name] = pd.to_numeric(df[col.name], errors='coerce')
+                    logger.info(f"  Column '{col.name}' forced to float64 type")
+                    
+                elif target_type == "datetime64[ns]":
+                    # Force to datetime type
+                    if df[col.name].dtype == 'object':
+                        df[col.name] = pd.to_datetime(df[col.name], errors='coerce')
+                    logger.info(f"  Column '{col.name}' forced to datetime64[ns] type")
+
+                elif target_type == "str":
+                    df[col.name] = df[col.name].astype(str)
+                    logger.info(f"  Column '{col.name}' forced to str type")
+
+
     return RawSheet(df=df, sheet_name=actual_sheet, file_path=str(filepath))
