@@ -14,6 +14,7 @@ from pydantic import BaseModel, Field
 
 from config import TARGET_DATE_FORMAT
 from core import ExtractionResult
+from core.target_schema import TABLE_SPEC
 
 logger = logging.getLogger(__name__)
 
@@ -153,12 +154,25 @@ def build_column_metadata(series: pd.Series) -> Dict[str, Any]:
     else:
         avg_length = 0
 
-    return {
+    metadata = {
         "inferred_type": inferred_type,
         "unique_ratio": round(unique_ratio, 3),
         "sample_values": samples,
         "avg_length": round(avg_length, 2),
     }
+
+    # --- Add target column context if there's a match ---
+    target_column = TABLE_SPEC.get_column_by_name(series.name)
+    if target_column:
+        context_parts = []
+        if target_column.aliases:
+            context_parts.append(f"Aliases: {', '.join(target_column.aliases)}")
+        if target_column.description:
+            context_parts.append(f"Description: {target_column.description}")
+        if context_parts:
+            metadata["target_context"] = " | ".join(context_parts)
+
+    return metadata
 
 
 def generate_recipe(
@@ -239,18 +253,12 @@ def generate_recipe(
     logger.info(f"Source metadata size: {len(metadata_json)} chars, {len(source_metadata)} columns")
     
     system_prompt = f"""\
-You are a schema alignment engine.
-
-{resolved_context}
-
+You are a schema alignment engine. The input data is about a south african based insurance details
 Source columns with metadata and sample values:
 {metadata_json}
-
 Unresolved target columns:
 {json.dumps(unresolved_targets, indent=2)}
-
 Return ONLY JSON in this format:
-
 {{
   "transformations": [
     {{
@@ -438,19 +446,19 @@ def apply_recipe(
                 split_series = series.str.split(delimiter)
 
                 if pick == "first":
-                    target_data[target_col] = split_series.str[0].fillna("")
+                    target_data[target_col] = split_series.str[0].fillna("").strip()
 
                 elif pick == "last":
-                    target_data[target_col] = split_series.str[-1].fillna("")
+                    target_data[target_col] = split_series.str[-1].fillna("").strip()
 
                 elif pick == "all_except_last":
                     target_data[target_col] = (
-                        split_series.str[:-1].str.join(delimiter).fillna("")
+                        split_series.str[:-1].str.join(delimiter).fillna("").strip()
                     )
 
                 elif pick == "index":
                     idx = rule.get("index", 0)
-                    target_data[target_col] = split_series.str[idx].fillna("")
+                    target_data[target_col] = split_series.str[idx].fillna("").strip()
 
                 else:
                     target_data[target_col] = series
@@ -513,7 +521,16 @@ def apply_recipe(
         if col not in target_data:
             target_data[col] = pd.Series([None] * len(source_df))
 
-    return pd.DataFrame(target_data)[target_columns]
+    # Create DataFrame with proper column order matching TABLE_SPEC
+    result_df = pd.DataFrame(target_data)
+    
+    # Reorder columns to match TABLE_SPEC order
+    table_spec_columns = [col.name for col in TABLE_SPEC.columns]
+    available_columns = [col for col in table_spec_columns if col in result_df.columns]
+    result_df = result_df[available_columns]
+    
+    logger.info(f"Applied recipe - Result columns: {list(result_df.columns)}")
+    return result_df
 
 
 # ── Post-apply validation ────────────────────────────────────────────────

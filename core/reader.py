@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Optional
 
 import pandas as pd
 
@@ -33,8 +34,9 @@ class RawSheet:
 
 
 def read_excel(
-    filepath: str | Path,
-    sheet_name: str | None = None,
+        filepath: str | Path,
+        sheet_name: str | None = None,
+        header: Optional[int] = None
 ) -> RawSheet:
     """Load every cell from a sheet into a DataFrame with no header inference.
 
@@ -44,6 +46,6 @@ def read_excel(
     filepath = Path(filepath)
     xl = pd.ExcelFile(filepath, engine="openpyxl")
     actual_sheet = sheet_name if sheet_name else xl.sheet_names[0]
-    df = pd.read_excel(xl, sheet_name=actual_sheet, header=None)
+    df = pd.read_excel(xl, sheet_name=actual_sheet, header=header)
     xl.close()
     return RawSheet(df=df, sheet_name=actual_sheet, file_path=str(filepath))

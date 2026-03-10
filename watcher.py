@@ -20,9 +20,11 @@ from config import (
     LLM_BASE_URL,
     LLM_MODEL,
     NUM_WORKERS,
+    OUTPUT_WORKERS,
     PROCESS_DIR,
     SOURCE_DIR,
     TARGET_DIR,
+    OUTPUT_DIR,
     LOGS_DIR,
 )
 from core import extract, read_excel
@@ -30,6 +32,7 @@ from core.data_cleaner import clean_data
 from core.target_schema import TABLE_SPEC
 from core.writer import write_excel
 from core.recipe_engine import apply_recipe, generate_recipe, validate_output
+
 
 def safe_move_file(src: Path, dst: Path) -> None:
     """Safely move file across platforms, handling cross-device moves."""
@@ -44,15 +47,16 @@ def safe_move_file(src: Path, dst: Path) -> None:
         else:
             raise
 
+
 # Configure logging with daily rotation
 def setup_logging():
     """Setup logging with daily log files."""
     # Create logs directory if it doesn't exist
     LOGS_DIR.mkdir(exist_ok=True)
-    
+
     # Generate log filename with current date
     log_filename = LOGS_DIR / f"excel_ingestion_{datetime.now().strftime('%Y-%m-%d')}.log"
-    
+
     # Configure logging
     logging.basicConfig(
         level=logging.INFO,
@@ -62,6 +66,7 @@ def setup_logging():
             logging.StreamHandler()
         ]
     )
+
 
 setup_logging()
 logger = logging.getLogger(__name__)
@@ -103,6 +108,7 @@ class ExcelHandler(FileSystemEventHandler):
 
 def worker_thread(
         file_queue: queue.Queue,
+        output_queue: queue.Queue,
         worker_id: int,
         shutdown_event: threading.Event
 ):
@@ -125,7 +131,7 @@ def worker_thread(
                 # Step 1: Detect structure
                 target_columns = TABLE_SPEC.column_names
                 logger.info(f"Worker {worker_id} detecting structure...")
-                structure =extract(filepath, target_columns=target_columns)
+                structure = extract(filepath, target_columns=target_columns)
                 logger.info(
                     f"Worker {worker_id} detected structure: {structure.boundary.data_row_count} rows, {len(structure.dataframe.columns)} columns")
 
@@ -156,14 +162,19 @@ def worker_thread(
                 for w in val_warnings:
                     logger.warning(f"Worker {worker_id} validation: {w}")
 
-                # Step 3.1 Data Cleanup
-                logger.debug(f"Worker {worker_id} Data Cleansing for file {_input_file_path.name}...")
-                df, _ = clean_data(df)
-
-                # Step 4: Write output
+                # Step 4: Write output to target directory
                 output_path = TARGET_DIR / f"{_input_file_path.stem}.xlsx"
-                write_excel(df, output_path)
+                write_excel(df, output_path, apply_formatting=False)
                 logger.info(f"Worker {worker_id} wrote output to: {output_path}")
+
+                # Step 5: Enqueue to output queue for data cleaning and final output
+                output_task = {
+                    'source_file': str(_input_file_path),
+                    'target_file': str(output_path),
+                    'worker_id': worker_id
+                }
+                output_queue.put(output_task)
+                logger.info(f"Worker {worker_id} enqueued file for output processing: {output_path}")
 
                 # Step 6: Move to completed
                 completed_path = COMPLETED_DIR / filepath.name
@@ -188,6 +199,52 @@ def worker_thread(
             logger.error(f"Worker {worker_id} unexpected error: {e}")
 
     logger.info(f"Worker {worker_id} shutting down")
+
+
+def output_worker_thread(
+        output_queue: queue.Queue,
+        worker_id: int,
+        shutdown_event: threading.Event
+):
+    """Output worker thread that processes files from the output queue."""
+    logger.info(f"Output Worker {worker_id} started")
+
+    while not shutdown_event.is_set():
+        try:
+            # Wait for task with timeout
+            try:
+                output_task = output_queue.get(timeout=1.0)
+            except queue.Empty:
+                continue
+
+            logger.info(f"Output Worker {worker_id} processing: {Path(output_task['target_file']).name}")
+
+            try:
+                # Step 1: Read the target file
+                logger.info(f"Output Worker {worker_id} reading target file: {output_task['target_file']}")
+                df = read_excel(output_task['target_file'], header=0).df
+
+                # Step 2: Apply data cleaning
+                logger.info(
+                    f"Output Worker {worker_id} Data Cleansing for file {Path(output_task['source_file']).name}...")
+                cleaned_df, _ = clean_data(df)
+
+                # Step 3: Write to output directory
+                output_final_path = OUTPUT_DIR / f"{Path(output_task['source_file']).stem}_output.xlsx"  # Todo: remove suffix output
+                write_excel(cleaned_df, output_final_path)
+                logger.info(f"Output Worker {worker_id} wrote cleaned output to: {output_final_path}")
+
+            except Exception as e:
+                logger.error(f"Output Worker {worker_id} error processing {output_task['target_file']}: {e}")
+                logger.error(f"Output Worker {worker_id} traceback: {traceback.format_exc()}")
+
+            finally:
+                output_queue.task_done()
+
+        except Exception as e:
+            logger.error(f"Output Worker {worker_id} unexpected error: {e}")
+
+    logger.info(f"Output Worker {worker_id} shutting down")
 
 
 def enqueue_existing_files(file_queue: queue.Queue):
@@ -220,23 +277,36 @@ def main():
     # Create shutdown event
     shutdown_event = threading.Event()
 
-    # Create file queue
+    # Create file queues
     file_queue = queue.Queue()
+    output_queue = queue.Queue()
 
     # Enqueue existing files
     enqueue_existing_files(file_queue)
 
-    # Start worker threads
+    # Start main worker threads
     workers = []
     for i in range(NUM_WORKERS):
         worker = threading.Thread(
             target=worker_thread,
-            args=(file_queue, i + 1, shutdown_event),
+            args=(file_queue, output_queue, i + 1, shutdown_event),
             name=f"Worker-{i + 1}"
         )
         worker.daemon = True
         worker.start()
         workers.append(worker)
+
+    # Start output worker threads
+    output_workers = []
+    for i in range(OUTPUT_WORKERS):
+        output_worker = threading.Thread(
+            target=output_worker_thread,
+            args=(output_queue, i + 1, shutdown_event),
+            name=f"OutputWorker-{i + 1}"
+        )
+        output_worker.daemon = True
+        output_worker.start()
+        output_workers.append(output_worker)
 
     # Setup file system watcher
     event_handler = ExcelHandler(file_queue)
@@ -244,7 +314,7 @@ def main():
     observer.schedule(event_handler, str(SOURCE_DIR), recursive=False)
     observer.start()
 
-    logger.info(f"Watcher started on {SOURCE_DIR} with {NUM_WORKERS} workers")
+    logger.info(f"Watcher started on {SOURCE_DIR} with {NUM_WORKERS} workers and {OUTPUT_WORKERS} output workers")
 
     # Setup signal handlers for graceful shutdown
     def signal_handler(signum, frame):
@@ -269,6 +339,10 @@ def main():
     # Wait for workers to finish
     for worker in workers:
         worker.join(timeout=5)
+
+    # Wait for output workers to finish
+    for output_worker in output_workers:
+        output_worker.join(timeout=5)
 
     logger.info("Watcher shutdown complete")
 
