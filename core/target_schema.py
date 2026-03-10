@@ -8,7 +8,9 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, field
+from functools import partial
 from typing import Callable, List, Optional
+from core.constant import Gender
 
 import pandas as pd
 
@@ -18,7 +20,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class Rule:
     id: str
-    fn: Callable[[pd.DataFrame], pd.DataFrame]
+    apply: Callable[[pd.DataFrame], pd.DataFrame]
 
 
 @dataclass
@@ -79,12 +81,32 @@ class TableSpec:
                 continue
             for rule in col.rules:
                 logger.debug(f"Running rule '{rule.id}' on column '{col.name}'")
-                df = rule.fn(df)
+                df = rule.apply(df)
                 applied.append(rule.id)
         return df, applied
 
 
 # ── Rule functions ────────────────────────────────────────────────────────
+
+def validate_email(df: pd.DataFrame, check_deliverability=False) -> pd.DataFrame:
+    """Validate email addresses using email-validator library."""
+    from email_validator import validate_email, EmailNotValidError
+
+    if "PersonalEmailAddress" in df.columns:
+        mask = df["PersonalEmailAddress"].notna()
+        invalid_count = 0
+
+        for idx in df[mask].index:
+            try:
+                validate_email(df.loc[idx, "PersonalEmailAddress"], check_deliverability=check_deliverability)
+            except EmailNotValidError:
+                df.loc[idx, "PersonalEmailAddress"] = None
+                invalid_count += 1
+
+        logger.info(f"Validated emails: {invalid_count} invalid emails cleared")
+
+    return df
+
 
 def _derive_monthly_from_annual(df: pd.DataFrame) -> pd.DataFrame:
     monthly_null = df["MonthlyIncome"].isna()
@@ -127,8 +149,8 @@ def _derive_annual_from_monthly(df: pd.DataFrame) -> pd.DataFrame:
 
 
 _GENDER_MAP = {
-    "f": "Female", "female": "Female",
-    "m": "Male", "male": "Male",
+    "f": Gender.FEMALE.value, "female": Gender.FEMALE.value,
+    "m": Gender.MALE.value, "male": Gender.MALE.value,
 }
 
 
@@ -139,8 +161,85 @@ def _normalize_gender(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
+def _sanitize_mobile_number(df: pd.DataFrame) -> pd.DataFrame:
+    """Sanitize mobile phone numbers by padding missing leading zeros."""
+    if "CellPhoneNumber" in df.columns:
+        mask = df["CellPhoneNumber"].notna()
+
+        for idx in df[mask].index:
+            phone = str(df.loc[idx, "CellPhoneNumber"]).strip()
+
+            # Remove any non-digit characters
+            digits_only = ''.join(filter(str.isdigit,
+                                         phone))
+
+            # Pad 9-digit numbers that don't start with 0
+            if len(digits_only) == 9 and not digits_only.startswith('0'):
+                digits_only = '0' + digits_only
+
+            df.loc[idx, "CellPhoneNumber"] = digits_only
+
+        logger.info(f"Sanitized mobile numbers for {mask.sum()} records")
+
+    return df
+
+
+def repair_sa_id_using_dob(df, id_col, dob_col):
+    """
+    Repair truncated SA IDs using DOB information.
+    """
+    df = df.copy()
+
+    # Normalize types
+    ids = df[id_col].astype(str)
+    dob = pd.to_datetime(df[dob_col], errors="coerce")
+
+    id_len = ids.str.len()
+
+    dob_year = dob.dt.year
+    dob_yy = dob.dt.strftime("%y")
+    dob_mm = dob.dt.strftime("%m")
+    dob_dd = dob.dt.strftime("%d")
+
+    expected_yymmdd = dob_yy + dob_mm + dob_dd
+
+    repaired_ids = ids.copy()
+
+    # ---------- Case 1 : 11 digit IDs ----------
+    mask_11 = (id_len == 11) & (dob_year == 2000)
+
+    repaired_ids.loc[mask_11] = "00" + ids.loc[mask_11]
+
+    # ---------- Case 2 : 12 digit IDs ----------
+    mask_12 = (id_len == 12) & (dob_year.between(2001, 2009))
+
+    repaired_ids.loc[mask_12] = "0" + ids.loc[mask_12]
+
+    # ---------- Validate YYMMDD ----------
+    yymmdd_from_id = repaired_ids.str[:6]
+
+    dob_valid = yymmdd_from_id == expected_yymmdd
+
+    # Ensure extracted date is valid calendar date
+    extracted_date = pd.to_datetime(
+        "20" + repaired_ids.str[:2] + "-" +
+        repaired_ids.str[2:4] + "-" +
+        repaired_ids.str[4:6],
+        errors="coerce"
+    )
+
+    valid_date = extracted_date.notna()
+
+    final_mask = dob_valid & valid_date
+
+    df.loc[final_mask, id_col] = repaired_ids[final_mask]
+
+    return df
+
+
 # ── Table specification ───────────────────────────────────────────────────
 # Add all target columns here.  Columns without rules use an empty list.
+# Todo: Validate the output data spec
 
 FirstName = Column(
     name="FirstName",
@@ -176,10 +275,11 @@ Dob = Column(
 
 IdNo = Column(
     name="IdNo",
-    rules=[],
+    rules=[Rule("sanitize_id_number", partial(repair_sa_id_using_dob, id_col="IdNo", dob_col="Dob"))],
     aliases=["id number", "idno", "member id", "identification number", "id", "identity number"],
     description="Unique identifier for the person (13-digit South African ID or some similar id)",
-    data_type="object"
+    data_type="object",
+    excel_format="@",
 )
 AnnualIncome = Column(
     name="AnnualIncome",
@@ -202,6 +302,7 @@ MonthlyIncome = Column(
 
 CellPhoneNumber = Column(
     name="CellPhoneNumber",
+    rules=[Rule("sanitize_mobile_number", _sanitize_mobile_number)],
     aliases=["cell phone", "mobile number", "cellphone", "mobile", "phone number"],
     description="Person's mobile/cell phone number",
     data_type="str",
@@ -213,7 +314,8 @@ PersonalEmailAddress = Column(
     name="PersonalEmailAddress",
     aliases=["email", "email address", "personal email", "mail"],
     description="Person's personal email address",
-    data_type="str"
+    data_type="str",
+    rules=[Rule("validate_email", validate_email)]
 )
 Category = Column(name="Category")
 PassportCountryofIssue = Column(name="PassportCountryofIssue")
