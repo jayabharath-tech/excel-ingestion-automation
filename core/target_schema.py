@@ -184,55 +184,79 @@ def _sanitize_mobile_number(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
-def repair_sa_id_using_dob(df, id_col, dob_col):
+def repair_sa_id_candidate(ids, dob):
     """
-    Repair truncated SA IDs using DOB information.
+    Generate repaired SA IDs based on DOB rules.
+    Does not validate DOB correctness.
     """
-    df = df.copy()
 
-    # Normalize types
-    ids = df[id_col].astype(str)
-    dob = pd.to_datetime(df[dob_col], errors="coerce")
-
+    ids = ids.astype(str)
     id_len = ids.str.len()
 
     dob_year = dob.dt.year
-    dob_yy = dob.dt.strftime("%y")
-    dob_mm = dob.dt.strftime("%m")
-    dob_dd = dob.dt.strftime("%d")
-
-    expected_yymmdd = dob_yy + dob_mm + dob_dd
+    expected_yymmdd = dob.dt.strftime("%y%m%d")
+    expected_ymmdd = expected_yymmdd.str[1:]
+    expected_mmdd = expected_yymmdd.str[2:]
 
     repaired_ids = ids.copy()
 
-    # ---------- Case 1 : 11 digit IDs ----------
-    mask_11 = (id_len == 11) & (dob_year == 2000)
+    mask_11 = (
+        (id_len == 11)
+        & (dob_year == 2000)
+        & (ids.str[:4] == expected_mmdd)
+    )
 
     repaired_ids.loc[mask_11] = "00" + ids.loc[mask_11]
 
-    # ---------- Case 2 : 12 digit IDs ----------
-    mask_12 = (id_len == 12) & (dob_year.between(2001, 2009))
+    mask_12 = (
+        (~mask_11)
+        & (id_len == 12)
+        & (dob_year.between(2001, 2009))
+        & (ids.str[:5] == expected_ymmdd)
+    )
 
     repaired_ids.loc[mask_12] = "0" + ids.loc[mask_12]
 
-    # ---------- Validate YYMMDD ----------
-    yymmdd_from_id = repaired_ids.str[:6]
+    return repaired_ids
 
-    dob_valid = yymmdd_from_id == expected_yymmdd
 
-    # Ensure extracted date is valid calendar date
+def validate_id_matches_dob(ids, dob):
+    """
+    Validate YYMMDD in SA ID against DOB column.
+    """
+
+    expected_yymmdd = dob.dt.strftime("%y%m%d")
+    yymmdd_from_id = ids.str[:6]
+
+    dob_match = yymmdd_from_id == expected_yymmdd
+
     extracted_date = pd.to_datetime(
-        "20" + repaired_ids.str[:2] + "-" +
-        repaired_ids.str[2:4] + "-" +
-        repaired_ids.str[4:6],
+        yymmdd_from_id,
+        format="%y%m%d",
         errors="coerce"
     )
 
     valid_date = extracted_date.notna()
 
-    final_mask = dob_valid & valid_date
+    return dob_match & valid_date
 
-    df.loc[final_mask, id_col] = repaired_ids[final_mask]
+def repair_sa_id_using_dob(df, id_col, dob_col):
+
+    df = df.copy()
+
+    ids = df[id_col].astype(str)
+
+    dob = pd.to_datetime(
+        df[dob_col],
+        errors="coerce",
+        dayfirst=True
+    )
+
+    repaired_ids = repair_sa_id_candidate(ids, dob)
+
+    valid_mask = validate_id_matches_dob(repaired_ids, dob)
+
+    df.loc[valid_mask, id_col] = repaired_ids[valid_mask]
 
     return df
 

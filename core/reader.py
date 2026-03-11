@@ -108,5 +108,5 @@ def read_excel_with_schema(
                     df[col.name] = df[col.name].astype(str)
                     logger.info(f"  Column '{col.name}' forced to str type")
 
-
+    print(df["Dob"].head(3))
     return RawSheet(df=df, sheet_name=actual_sheet, file_path=str(filepath))

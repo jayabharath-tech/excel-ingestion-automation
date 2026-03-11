@@ -2,7 +2,6 @@
 
 import pandas as pd
 import pytest
-from datetime import datetime
 
 from core.constant import Gender
 from core.data_cleaner import (
