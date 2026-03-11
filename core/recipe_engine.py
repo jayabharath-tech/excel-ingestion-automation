@@ -401,6 +401,20 @@ def _validate_recipe(transformations, source_columns, target_columns):
                 raise ValueError(f"Invalid source column: {src}")
 
 
+def split_full_name(series, target_col):
+    from nameparser import HumanName
+
+    parsed = series.fillna("").apply(lambda x: HumanName(x))
+
+    if target_col == "FirstName":
+        return parsed.apply(lambda x: x.first)
+
+    if target_col == "Surname":
+        return parsed.apply(lambda x: x.last)
+
+    return None
+
+
 def apply_recipe(
     df: pd.DataFrame, recipe: Recipe, target_columns: List[str]
 ) -> pd.DataFrame:
@@ -440,6 +454,9 @@ def apply_recipe(
             series = source_df[source_col].fillna("").astype(str).str.strip()
 
             if isinstance(rule, dict) and rule.get("operation") == "split":
+                if target_col in ["FirstName", "Surname"]:
+                    target_data[target_col] = split_full_name(series, target_col)
+                    continue
                 delimiter = rule.get("delimiter", " ")
                 pick = rule.get("pick")
 

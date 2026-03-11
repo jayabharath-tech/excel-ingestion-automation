@@ -9,7 +9,7 @@ from __future__ import annotations
 from typing import List
 
 from core.target_schema import TABLE_SPEC
-from core.constant import Gender
+from core.constant import Gender, SA_PARTICLES
 
 import pandas as pd
 import numpy as np
@@ -123,7 +123,37 @@ def correct_sa_id_fields(
     return df
 
 
+def normalize_sa_names(df: pd.DataFrame, firstname_col: str, lastname_col: str) -> pd.DataFrame:
+    df = df.copy()
+
+    # First names: simple title case
+    df[firstname_col] = (
+        df[firstname_col]
+        .astype(str)
+        .str.strip()
+        .str.title()
+    )
+
+    # Last names: title case first
+    last = (
+        df[lastname_col]
+        .astype(str)
+        .str.strip()
+        .str.title()
+    )
+
+    # Fix common SA particles
+    for p in SA_PARTICLES:
+        last = last.str.replace(fr"\b{p.title()}\b", p, regex=True)
+
+    df[lastname_col] = last
+
+    return df
+
 def clean_data(df: pd.DataFrame) -> tuple[pd.DataFrame, List[str]]:
     """Run all applicable cleaning rules. Returns (cleaned_df, applied_rule_ids)."""
-    df_base = correct_sa_id_fields(df, "IdNo", "Dob", "Gender")
+    df_base = (df
+               .pipe(correct_sa_id_fields, "IdNo", "Dob", "Gender")
+               .pipe(normalize_sa_names, "FirstName", "Surname")
+    )
     return TABLE_SPEC.clean(df_base)
