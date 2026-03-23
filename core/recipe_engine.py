@@ -9,7 +9,8 @@ from enum import Enum
 from typing import Any, Dict, List, Optional, Union
 
 import pandas as pd
-from openai import OpenAI
+# from openai import OpenAI
+from openai.lib.azure import AzureOpenAI
 from pydantic import BaseModel, Field
 
 from config import TARGET_DATE_FORMAT
@@ -347,8 +348,7 @@ CRITICAL RULES:
     # -----------------------------------------
     # 6. LLM Call
     # -----------------------------------------
-    client = OpenAI(base_url=base_url, api_key=api_key)
-
+    client = AzureOpenAI(azure_endpoint=base_url, api_key=api_key, api_version="2024-12-01-preview")
     response = client.chat.completions.create(
         model=model,
         temperature=0,
