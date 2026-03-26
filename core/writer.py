@@ -52,11 +52,11 @@ def _apply_excel_formatting(output_path: Path) -> None:
     try:
         wb = load_workbook(str(output_path))
 
-        if "Data" not in wb.sheetnames:
+        if "Use" not in wb.sheetnames:
             logger.warning(f"Data sheet not found. Available sheets: {wb.sheetnames}")
             return
 
-        ws = wb["Data"]
+        ws = wb["Use"]
 
         # Map column names -> column index
         header_row = next(ws.iter_rows(min_row=1, max_row=1, values_only=True))
@@ -128,7 +128,7 @@ def _apply_excel_formatting(output_path: Path) -> None:
 def write_excel(
     df: pd.DataFrame,
     output_path: str | Path,
-    sheet_name: str = "Data",
+    sheet_name: str = "Use",
     recipe: Recipe | None = None,
     apply_formatting: bool = True,
 ) -> Path:
@@ -150,6 +150,11 @@ def write_excel(
     
     # Ensure DataFrame has a clean index (no named index)
     df_to_write = df.reset_index(drop=True)
+    
+    # Convert IdNo column to string to prevent exponential formatting in Excel
+    if "IdNo" in df_to_write.columns:
+        df_to_write["IdNo"] = df_to_write["IdNo"].astype(str)
+    
     logger.info(f"Writing DataFrame with shape {df_to_write.shape} to {output_path}")
 
     with pd.ExcelWriter(str(output_path), engine="openpyxl") as writer:

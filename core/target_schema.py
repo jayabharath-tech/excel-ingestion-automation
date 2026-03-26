@@ -115,12 +115,12 @@ def _derive_monthly_from_annual(df: pd.DataFrame) -> pd.DataFrame:
     # Only derive if we have valid annual values
     if annual_avail.any():
         annual_values = df.loc[annual_avail, "AnnualIncome"]
-        # Convert to numeric, handling None values
-        annual_numeric = pd.to_numeric(annual_values, errors='coerce')
+        # Convert to numeric, handling None values, and round to 2 decimal places
+        annual_numeric = pd.to_numeric(annual_values, errors='coerce').round(2)
         # Only update where conversion succeeded
         valid_mask = annual_numeric.notna()
         if valid_mask.any():
-            df.loc[monthly_null & annual_avail, "MonthlyIncome"] = annual_numeric[valid_mask] / 12
+            df.loc[monthly_null & annual_avail, "MonthlyIncome"] = (annual_numeric[valid_mask] / 12).round(2)
     else:
         # If no annual values at all, ensure MonthlyIncome stays as is (could be empty or have values)
         pass
@@ -135,12 +135,12 @@ def _derive_annual_from_monthly(df: pd.DataFrame) -> pd.DataFrame:
     # Only derive if we have valid monthly values
     if monthly_avail.any():
         monthly_values = df.loc[monthly_avail, "MonthlyIncome"]
-        # Convert to numeric, handling None values
-        monthly_numeric = pd.to_numeric(monthly_values, errors='coerce')
+        # Convert to numeric, handling None values, and round to 2 decimal places
+        monthly_numeric = pd.to_numeric(monthly_values, errors='coerce').round(2)
         # Only update where conversion succeeded
         valid_mask = monthly_numeric.notna()
         if valid_mask.any():
-            df.loc[annual_null & monthly_avail, "AnnualIncome"] = monthly_numeric[valid_mask] * 12
+            df.loc[annual_null & monthly_avail, "AnnualIncome"] = (monthly_numeric[valid_mask] * 12).round(2)
     else:
         # If no monthly values at all, ensure AnnualIncome stays as is (could be empty or have values)
         pass
@@ -260,6 +260,29 @@ def repair_sa_id_using_dob(df, id_col, dob_col):
 
     return df
 
+def _derive_category(df):
+    """Extract numeric category from various category string formats."""
+    if "Category" not in df.columns:
+        return df
+    
+    mask = df["Category"].notna()
+    
+    for idx in df[mask].index:
+        category_str = str(df.loc[idx, "Category"]).strip()
+        
+        # Extract numbers from the string
+        import re
+        numbers = re.findall(r'\d+', category_str)
+        
+        if numbers:
+            # Take the first number found
+            df.loc[idx, "Category"] = int(numbers[0])
+        else:
+            # If no numbers found, set to None
+            df.loc[idx, "Category"] = None
+    
+    return df
+
 
 # ── Table specification ───────────────────────────────────────────────────
 # Add all target columns here.  Columns without rules use an empty list.
@@ -341,7 +364,7 @@ PersonalEmailAddress = Column(
     data_type="str",
     rules=[Rule("validate_email", validate_email)]
 )
-Category = Column(name="Category")
+Category = Column(name="Category", data_type="int64", rules=[Rule("derive_category", _derive_category)])
 PassportCountryofIssue = Column(name="PassportCountryofIssue")
 PaypointorBranchName = Column(name="PaypointorBranchName")
 PayrollNumber = Column(name="PayrollNumber")
