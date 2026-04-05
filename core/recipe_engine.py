@@ -340,7 +340,7 @@ If confidence is 0.7 or above, set "alternatives": null.
 CRITICAL RULES:
 - PREFER "rename" over "split" whenever possible
 - "FIRST NAMES" should map to "FirstName" with "rename", NOT "split"
-- Ensure to have the target columns with null when no source column match is found.
+- Ensure to have the target columns empty when no source column match is found.
 - Do NOT hallucinate new source columns.
 - Do NOT include explanations.
 - Return ONLY JSON.\
@@ -374,7 +374,7 @@ CRITICAL RULES:
     # -----------------------------------------
     logger.info("validating recipe...")
     _validate_recipe(final_transformations, source_names, target_columns)
-
+    # print(final_transformations)
     return Recipe(transformations=final_transformations)
 
 

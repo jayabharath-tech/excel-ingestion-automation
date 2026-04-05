@@ -260,17 +260,27 @@ def repair_sa_id_using_dob(df, id_col, dob_col):
 
     return df
 
+
 def _derive_category(df):
     if "Category" not in df.columns:
         return df
 
-    df["Category"] = (
-        df["Category"]
-        .astype(str)
-        .str.extract(r'(\d+)')[0]   # first continuous digit group
-        .astype(float)              # allows NaN
-        .astype("Int64")            # nullable integer
+    col = df["Category"]
+
+    # Convert safely to string
+    col = col.astype("string")
+
+    # Clean weird Excel characters
+    col = (
+        col.str.replace(r'\s+', ' ', regex=True)
+           .str.replace(r'[^\x00-\x7F]+', '', regex=True)
+           .str.strip()
     )
+
+    # Extract first continuous digits
+    extracted = col.str.extract(r'(\d+)', expand=False)
+
+    df["Category"] = pd.to_numeric(extracted, errors="coerce").astype("Int64")
 
     return df
 
@@ -282,7 +292,7 @@ def _remove_duplicate_ids(df: pd.DataFrame):
     return df
 
 
-def strip_non_alphanumeric_characters(col: str, df: pd.DataFrame):
+def strip_non_alphanumeric_characters(df: pd.DataFrame, col: str):
 
     df[col] = (
             df[col]
@@ -377,7 +387,7 @@ PersonalEmailAddress = Column(
     data_type="str",
     rules=[Rule("validate_email", validate_email)]
 )
-Category = Column(name="Category", aliases= ["category", "Categories"], data_type="int64", rules=[Rule("derive_category", _derive_category)])
+Category = Column(name="Category", aliases= ["category", "Categories"], rules=[Rule("derive_category", _derive_category)])
 PassportCountryofIssue = Column(name="PassportCountryofIssue")
 PaypointorBranchName = Column(name="PaypointorBranchName")
 PayrollNumber = Column(name="PayrollNumber")

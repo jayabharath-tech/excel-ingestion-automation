@@ -67,7 +67,7 @@ def _apply_excel_formatting(output_path: Path) -> None:
             if name
         }
 
-        logger.info(f"Detected columns: {list(col_name_to_idx.keys())}")
+        logger.debug(f"Detected columns: {list(col_name_to_idx.keys())}")
 
         formatted_columns = 0
 
@@ -144,9 +144,9 @@ def write_excel(
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
     # Debug: Check DataFrame columns
-    logger.info(f"DataFrame columns: {list(df.columns)}")
-    logger.info(f"DataFrame dtypes: {dict(df.dtypes)}")
-    logger.info(f"DataFrame shape: {df.shape}")
+    logger.debug(f"DataFrame columns: {list(df.columns)}")
+    logger.debug(f"DataFrame dtypes: {dict(df.dtypes)}")
+    logger.debug(f"DataFrame shape: {df.shape}")
     
     # Ensure DataFrame has a clean index (no named index)
     df_to_write = df.reset_index(drop=True)
