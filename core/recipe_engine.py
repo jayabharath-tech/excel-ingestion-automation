@@ -302,7 +302,7 @@ Transformation rules:
      }}
 
 4. empty:
-   - Use when no matching source column exists
+   - Use when no matching source column exists, add the column to the output
    - rule: null
 
 Every transformation may also include:
@@ -340,6 +340,7 @@ If confidence is 0.7 or above, set "alternatives": null.
 CRITICAL RULES:
 - PREFER "rename" over "split" whenever possible
 - "FIRST NAMES" should map to "FirstName" with "rename", NOT "split"
+- Ensure to have the target columns with null when no source column match is found.
 - Do NOT hallucinate new source columns.
 - Do NOT include explanations.
 - Return ONLY JSON.\

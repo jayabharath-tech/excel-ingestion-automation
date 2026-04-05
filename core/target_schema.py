@@ -261,26 +261,35 @@ def repair_sa_id_using_dob(df, id_col, dob_col):
     return df
 
 def _derive_category(df):
-    """Extract numeric category from various category string formats."""
     if "Category" not in df.columns:
         return df
-    
-    mask = df["Category"].notna()
-    
-    for idx in df[mask].index:
-        category_str = str(df.loc[idx, "Category"]).strip()
+
+    df["Category"] = (
+        df["Category"]
+        .astype(str)
+        .str.extract(r'(\d+)')[0]   # first continuous digit group
+        .astype(float)              # allows NaN
+        .astype("Int64")            # nullable integer
+    )
+
+    return df
+
+
+def _remove_duplicate_ids(df: pd.DataFrame):
+    if "IdNo" not in df.columns:
+        raise RuntimeError("IdNo column not found.")
+    df = df.drop_duplicates(subset=["IdNo"], keep='first')
+    return df
+
+
+def strip_non_alphanumeric_characters(col: str, df: pd.DataFrame):
+
+    df[col] = (
+            df[col]
+            .str.replace(r'^[^a-zA-Z0-9]+', '', regex=True)
+            .str.replace(r'[^a-zA-Z0-9]+$', '', regex=True)
+            )
         
-        # Extract numbers from the string
-        import re
-        numbers = re.findall(r'\d+', category_str)
-        
-        if numbers:
-            # Take the first number found
-            df.loc[idx, "Category"] = int(numbers[0])
-        else:
-            # If no numbers found, set to None
-            df.loc[idx, "Category"] = None
-    
     return df
 
 
@@ -322,7 +331,11 @@ Dob = Column(
 
 IdNo = Column(
     name="IdNo",
-    rules=[Rule("sanitize_id_number", partial(repair_sa_id_using_dob, id_col="IdNo", dob_col="Dob"))],
+    rules=[
+        Rule("sanitize_id_number", partial(repair_sa_id_using_dob, id_col="IdNo", dob_col="Dob")),
+        Rule("strip_non_alphanumeric_characters", partial(strip_non_alphanumeric_characters, col="IdNo")),
+        Rule("remove_duplicate_ids", _remove_duplicate_ids )
+        ],
     aliases=["id number", "idno", "member id", "identification number", "id", "identity number"],
     description="Unique identifier for the person (13-digit South African ID or some similar id)",
     data_type="object",
@@ -331,8 +344,8 @@ IdNo = Column(
 AnnualIncome = Column(
     name="AnnualIncome",
     rules=[Rule("derive_annual_from_monthly", _derive_annual_from_monthly)],
-    aliases=["annual income", "yearly salary", "annual salary", "yearly income"],
-    description="Person's annual income in South African Rand",
+    aliases=["annual_income", "yearly salary", "annual salary", "yearly_income"],
+    description="Person's annual income in South African Rand, ensure you are not picking up monthly income or salary columns into this",
     data_type="float64",
     # excel_format='_([$$-409]* #,##0.00_)' # changes accordingly based on the excel locale
     excel_format='_([$R-en-ZA]* #,##0.00_)'
@@ -341,7 +354,7 @@ AnnualIncome = Column(
 MonthlyIncome = Column(
     name="MonthlyIncome",
     rules=[Rule("derive_monthly_from_annual", _derive_monthly_from_annual)],
-    aliases=["monthly income", "monthly salary", "monthly pay"],
+    aliases=["monthly income", "monthly salary", "monthly pay", "monthlyIncome"],
     description="Person's monthly income in South African Rand",
     data_type="float64",
     excel_format='_([$R-en-ZA]* #,##0.00_)'
@@ -364,7 +377,7 @@ PersonalEmailAddress = Column(
     data_type="str",
     rules=[Rule("validate_email", validate_email)]
 )
-Category = Column(name="Category", data_type="int64", rules=[Rule("derive_category", _derive_category)])
+Category = Column(name="Category", aliases= ["category", "Categories"], data_type="int64", rules=[Rule("derive_category", _derive_category)])
 PassportCountryofIssue = Column(name="PassportCountryofIssue")
 PaypointorBranchName = Column(name="PaypointorBranchName")
 PayrollNumber = Column(name="PayrollNumber")
