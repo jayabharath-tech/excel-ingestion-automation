@@ -80,7 +80,9 @@ def extract(
     if sheet.is_empty:
         raise ValueError(f"Sheet '{sheet.sheet_name}' in {filepath} is empty.")
     # print(sheet.df)
-    header_idx = detect_header(sheet.df)
+    # header_idx = detect_header(sheet.df)
+    # print(f"header_idx: {header_idx}")
+    header_idx = None
     used_llm = False
 
     if header_idx is None:

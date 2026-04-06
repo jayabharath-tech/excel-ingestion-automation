@@ -13,7 +13,7 @@ from datetime import datetime
 from typing import Any
 
 import pandas as pd
-from openai import OpenAI
+from openai.lib.azure import AzureOpenAI
 from pydantic import BaseModel, Field
 
 from config import LLM_API_KEY, LLM_BASE_URL, LLM_MODEL
@@ -142,7 +142,7 @@ def llm_detect(
     system = _SYSTEM_PROMPT.format(schema=schema_json, target_columns_hint=hint)
     user_prompt = _build_prompt(sheet)
 
-    client = OpenAI(base_url=base_url, api_key=api_key)
+    client = AzureOpenAI(azure_endpoint=base_url, api_key=api_key, api_version="2024-12-01-preview")
     resp = client.chat.completions.create(
         model=model,
         messages=[
